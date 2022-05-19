@@ -23,6 +23,9 @@ class MainActivity : AppCompatActivity() {
     private val mainAdapter: MainAdapter by lazy {
         MainAdapter()
     }
+    private var thread: Thread? = null
+    private var observable: Disposable? = null
+    private var job: Job? = null
 
     private val mutableLiveData = MutableLiveData<Int>()
     private val liveData: LiveData<Int>
@@ -33,73 +36,58 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // liveDataMethod().start()
-        // liveDataMethodUpdateUi().start()
+        binding.mainActivityRecyclerView.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            setHasFixedSize(true)
+            adapter = mainAdapter
+        }
+
+        // liveDataMethod()
         // rxJavaMethod()
         // coroutineMethod()
     }
 
     override fun onStop() {
         super.onStop()
-        liveDataMethod().stop()
-        liveDataMethodUpdateUi().stop()
-        rxJavaMethod()?.dispose()
-        coroutineMethod().cancel()
+        thread?.interrupt()
+        Log.i("onStop", thread?.isInterrupted.toString())
+        observable?.dispose()
+        Log.i("onStop", observable?.isDisposed.toString())
+        job?.cancel()
+        Log.i("onStop", job?.isCancelled.toString())
     }
 
-    private fun liveDataMethod(): Thread {
-        val thread = Thread {
-            for (n in 0..15) {
-                val i = Random.nextInt()
-                mutableLiveData.postValue(i)
-                Thread.sleep(1000)
-            }
-        }
-        return thread
-    }
-
-    private fun liveDataMethodUpdateUi(): Thread {
-        val thread = Thread {
+    private fun liveDataMethod() {
+        thread = Thread {
             runOnUiThread {
-                binding.mainActivityRecyclerView.apply {
-                    layoutManager = LinearLayoutManager(this@MainActivity)
-                    setHasFixedSize(true)
-                    adapter = mainAdapter
-                }
                 liveData.observe(this) {
                     mainAdapter.addNumber(it)
                 }
             }
+            for (n in 0..15) {
+                val i = Random.nextInt()
+                mutableLiveData.postValue(i)
+                Thread.sleep(1000)
+                continue
+            }
         }
-        return thread
+        thread?.start()
     }
 
-    private fun rxJavaMethod(): Disposable? {
-        val observable = Observable.interval(1, TimeUnit.SECONDS)
+    private fun rxJavaMethod() {
+        observable = Observable.interval(1, TimeUnit.SECONDS)
             .map { Random.nextInt() }
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({next: Int ->
-                binding.mainActivityRecyclerView.apply {
-                layoutManager = LinearLayoutManager(this@MainActivity)
-                setHasFixedSize(true)
-                adapter = mainAdapter
-            }
                 mainAdapter.addNumber(next)},
                 { error: Throwable -> Log.i("myRxJava", error.message.toString()) })
-        return observable
     }
 
-    private fun coroutineMethod(): Job {
-        val job: Job = lifecycleScope.launch(Dispatchers.Main) {
-            binding.mainActivityRecyclerView.apply {
-                layoutManager = LinearLayoutManager(this@MainActivity)
-                setHasFixedSize(true)
-                adapter = mainAdapter
-            }
+    private fun coroutineMethod() {
+        job = lifecycleScope.launch(Dispatchers.Main) {
             myFlow().collect { value -> mainAdapter.addNumber(value) }
         }
-        return job
     }
 
     private fun myFlow(): Flow<Int> = flow {
