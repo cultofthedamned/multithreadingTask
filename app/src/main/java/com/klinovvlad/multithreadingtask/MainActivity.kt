@@ -58,17 +58,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun liveDataMethod() {
+        liveData.observe(this) {
+            mainAdapter.addNumber(it)
+        }
         thread = Thread {
-            runOnUiThread {
-                liveData.observe(this) {
-                    mainAdapter.addNumber(it)
-                }
-            }
-            for (n in 0..15) {
+            repeat (15) {
                 val i = Random.nextInt()
                 mutableLiveData.postValue(i)
                 Thread.sleep(1000)
-                continue
             }
         }
         thread?.start()
